@@ -70,7 +70,25 @@ export async function createPerk(req, res, next) {
 // TODO
 // Update an existing perk by ID and validate only the fields that are being updated 
 export async function updatePerk(req, res, next) {
-  
+  try {
+    // Only validate fields that are present in req.body
+    const updateFields = Object.keys(req.body);
+    if (updateFields.length === 0) {
+      return res.status(400).json({ message: 'No fields provided for update' });
+    }
+
+    // Build a dynamic Joi schema for only the fields being updated
+    const partialSchema = perkSchema.fork(updateFields, (schema) => schema.optional());
+    const { value, error } = partialSchema.validate(req.body, { stripUnknown: true });
+    if (error) return res.status(400).json({ message: error.message });
+
+    const doc = await Perk.findByIdAndUpdate(req.params.id, value, { new: true, runValidators: true });
+    if (!doc) return res.status(404).json({ message: 'Perk not found' });
+    res.json({ perk: doc });
+  } catch (err) {
+    if (err.code === 11000) return res.status(409).json({ message: 'Duplicate perk for this merchant' });
+    next(err);
+  }
 }
 
 
